@@ -1,54 +1,48 @@
-<div class="modal-content">
-  <div class="loan-application-modal">
-    <!-- Modal Header: Updated design -->
-    <div class="modal-header">
-      <div class="header-left">
-        <div id="applicationNumber" class="application-number">N/A</div>
-        <div class="applicant-info">
-          <div id="applicationApplicantName" class="applicant-name">N/A</div>
-        </div>
-        <div id="applicationStatusBadge" class="status-badge status-pending">
-          <i class="fas fa-clock"></i> Under Review
-        </div>
-      </div>
-      
-      <div class="header-actions">
-        <button type="button" class="action-btn" id="btn-print" onclick="printApplicationDetails()">
-          <i class="fas fa-print"></i> Print
-        </button>
-        <button type="button" class="action-btn primary" id="btn-export" onclick="exportApplicationDetails()">
-          <i class="fas fa-download"></i> Export
-        </button>
-        <button type="button" id="btn-edit" class="action-btn edit-btn" title="Edit Application" onclick="openEditSection('tab1')">
-          <i class="fas fa-pencil-alt"></i> Edit
-        </button>
-        <span class="close-button" onclick="closeViewApplicationModal()">&times;</span>
-      </div>
-    </div>
-    
-      <div class="modal-body">
-        <!-- General Information Section -->
-        <div class="compact-view section-block" id="section-general">
-          <div class="section-header">
-            <h5>General Information</h5>
+<!-- viewApps.html — View Application modal (full details & comments) -->
+<div id="viewApplicationModal" class="modal">
+  <div class="modal-content">
+    <div class="loan-application-modal">
+      <div class="modal-header">
+        <div class="header-left">
+          <div id="applicationNumber" class="application-number">N/A</div>
+          <div class="applicant-info">
+            <div id="applicationApplicantName" class="applicant-name">N/A</div>
           </div>
+          <div id="applicationStatusBadge" class="status-badge status-pending">
+            <i class="fas fa-clock"></i> Under Review
+          </div>
+        </div>
 
+        <div class="header-actions">
+          <button type="button" class="action-btn" id="btn-print" onclick="printApplicationDetails()">
+            <i class="fas fa-print"></i> Print
+          </button>
+          <button type="button" class="action-btn primary" id="btn-export" onclick="exportApplicationDetails()">
+            <i class="fas fa-download"></i> Export
+          </button>
+          <button type="button" id="btn-edit" class="action-btn edit-btn" title="Edit Application" onclick="openEditSection('tab1')">
+            <i class="fas fa-pencil-alt"></i> Edit
+          </button>
+          <span class="close-button" onclick="closeViewApplicationModal()">&times;</span>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <div class="compact-view section-block" id="section-general">
+          <div class="section-header"><h5>General Information</h5></div>
           <div class="two-column-flex view-two-column">
             <div class="inline-view-item">
               <div class="inline-label">Name of Applicant:</div>
               <div class="inline-value" id="view-name"></div>
             </div>
-
             <div class="inline-view-item">
               <div class="inline-label">Amount Requested:</div>
               <div class="inline-value" id="view-amount"></div>
             </div>
-
             <div class="inline-view-item">
               <div class="inline-label">Duration:</div>
               <div class="inline-value" id="view-duration"></div>
             </div>
-
             <div class="inline-view-item">
               <div class="inline-label">Interest Rate:</div>
               <div class="inline-value" id="view-interestRate"></div>
@@ -61,19 +55,13 @@
           </div>
         </div>
 
-        <!-- Character Section -->
         <div class="compact-view section-block" id="section-character">
-          <div class="section-header">
-            <h5>Character</h5>
-          </div>
+          <div class="section-header"><h5>Character</h5></div>
           <div class="view-value" id="view-characterComment"></div>
         </div>
 
-        <!-- Loan History Section -->
         <div class="compact-view section-block" id="section-loanhistory">
-          <div class="section-header">
-            <h5>Loan History</h5>
-          </div>
+          <div class="section-header"><h5>Loan History</h5></div>
           <div class="table-container-scroll">
             <table class="view-table" id="view-loanHistoryTable">
               <thead>
@@ -90,13 +78,8 @@
           </div>
         </div>
 
-        <!-- Ability Section -->
         <div class="compact-view section-block" id="section-ability">
-          <div class="section-header">
-            <h5>Ability</h5>
-          </div>
-
-          <!-- Personal Budget Table -->
+          <div class="section-header"><h5>Ability</h5></div>
           <div class="table-container-scroll">
             <table class="view-table" id="view-personalBudgetTable">
               <thead>
@@ -109,7 +92,6 @@
             </table>
           </div>
 
-          <!-- Budget Summary -->
           <div class="view-grid-two-columns inline-view-grid">
             <div class="view-item inline-view-item">
               <div class="view-label inline-label">Net Income:</div>
@@ -122,12 +104,8 @@
           </div>
         </div>
 
-        <!-- Monthly Turnover Section -->
         <div class="compact-view section-block" id="section-turnover">
-          <div class="section-header">
-            <h5>Monthly Turnover and Balance Summary</h5>
-          </div>
-
+          <div class="section-header"><h5>Monthly Turnover and Balance Summary</h5></div>
           <div class="table-container-scroll">
             <table class="view-table" id="view-monthlyTurnoverTable">
               <thead>
@@ -144,11 +122,8 @@
           </div>
         </div>
 
-        <!-- Risks & Recommendations Section -->
         <div class="compact-view section-block" id="section-risks">
-          <div class="section-header">
-            <h5>Risks/Recommendations</h5>
-          </div>
+          <div class="section-header"><h5>Risks/Recommendations</h5></div>
 
           <div class="view-category">
             <h6 class="category-title">Margin</h6>
@@ -177,7 +152,6 @@
 
           <div class="view-details-section">
             <h4>Recommendations</h4>
-
             <div class="view-details-category">
               <h5>Credit Officer Recommendation</h5>
               <div class="view-details-value" id="view-details-creditOfficerComment"></div>
@@ -201,12 +175,8 @@
           </div>
         </div>
 
-        <!-- Documents Section -->
         <div class="view-details-section section-block" id="section-documents">
-          <div class="section-header">
-            <h4>Documents Submitted</h4>
-          </div>
-
+          <div class="section-header"><h4>Documents Submitted</h4></div>
           <div>
             <div class="documents-container">
               <div class="document-item">
@@ -252,7 +222,6 @@
           </div>
         </div>
 
-        <!-- Recommendations editors (hidden by default, shown by role/stage) -->
         <div class="view-details-section" style="margin-top:12px;">
           <h4>Recommendations (Edit)</h4>
           <div>
@@ -293,8 +262,7 @@
           </div>
         </div>
 
-        <!-- Signature & Print Section: Only visible when Approved -->
-        <div id="signatures-section" class="signatures-section" style="display: none; margin-top:12px;">
+        <div id="signatures-section" class="signatures-section" style="display:none; margin-top:12px;">
           <h4>Signatures</h4>
           <div class="signatures-flex">
             <div class="signature-block">
@@ -316,47 +284,37 @@
               <div class="signature-position">Branch Manager</div>
             </div>
           </div>
-          <div style="text-align:right; margin-top: 1.5em;">
+          <div style="text-align:right; margin-top:1.5em;">
             <button type="button" onclick="printApplicationDetails()">Print</button>
           </div>
         </div>
 
-<div class="compact-actions">
-        <button type="button" id="btn-approve" onclick="saveStageComment(false,'APPROVE')" style="display:none;">Approve</button>
-        <button type="button" id="btn-revert" onclick="saveStageComment(true,'REVERT')" style="display:none;">Revert</button>
-        <button type="button" id="btn-submit" onclick="saveStageComment(false,'SUBMIT')" style="display:none;">Submit</button>
-        <button type="button" class="back-button" onclick="closeViewApplicationModal()">Close</button>
+        <div class="compact-actions">
+          <button type="button" id="btn-approve" onclick="saveStageComment(false,'APPROVE')" style="display:none;">Approve</button>
+          <button type="button" id="btn-revert" onclick="saveStageComment(true,'REVERT')" style="display:none;">Revert</button>
+          <button type="button" id="btn-submit" onclick="saveStageComment(false,'SUBMIT')" style="display:none;">Submit</button>
+          <button type="button" class="back-button" onclick="closeViewApplicationModal()">Close</button>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-  (function() {
-    // Auto-resize textareas in view application modal
+  (function(){
     function autoResizeViewTextarea(textarea) {
       textarea.style.height = 'auto';
       textarea.style.height = (textarea.scrollHeight) + 'px';
     }
-
     function initViewAutoResize() {
       document.querySelectorAll('#viewApplicationModal textarea').forEach(t => {
         t.style.resize = 'none';
         autoResizeViewTextarea(t);
-        t.addEventListener('input', () => {
-          autoResizeViewTextarea(t);
-        }, { passive: true });
+        t.addEventListener('input', () => { autoResizeViewTextarea(t); }, { passive: true });
       });
     }
-
-    // Observe table body changes in view application modal
     function initViewTableObservers() {
-      const tableIds = [
-        'view-loanHistoryTable',
-        'view-personalBudgetTable', 
-        'view-monthlyTurnoverTable'
-      ];
-      
+      const tableIds = ['view-loanHistoryTable','view-personalBudgetTable','view-monthlyTurnoverTable'];
       tableIds.forEach(id => {
         const table = document.getElementById(id);
         if (!table) return;
@@ -364,40 +322,28 @@
         if (!tbody) return;
         const observer = new MutationObserver(() => {
           const mc = document.querySelector('#viewApplicationModal .modal-content');
-          if (mc) {
-            mc.style.maxHeight = 'none';
-            mc.getBoundingClientRect();
-          }
+          if (mc) { mc.style.maxHeight = 'none'; mc.getBoundingClientRect(); }
         });
         observer.observe(tbody, { childList: true, subtree: true });
       });
     }
-
-    // Initialization called when modal is opened
-    function initViewApplicationModal(appData) {
-      initViewAutoResize();
-      initViewTableObservers();
-      
-      // Also handle comment editor textareas that might be shown/hidden dynamically
-      const commentEditors = document.querySelectorAll('#viewApplicationModal .comment-editor');
-      commentEditors.forEach(editor => {
-        const textarea = editor.querySelector('textarea');
-        if (textarea) {
-          textarea.style.resize = 'none';
-          autoResizeViewTextarea(textarea);
-          textarea.addEventListener('input', () => {
-            autoResizeViewTextarea(textarea);
-          }, { passive: true });
-        }
-      });
-    }
-
-    // Expose init functions expected by Main.js / viewApps.js
-    window.initViewApplicationModal = initViewApplicationModal;
-    window.refreshViewApplicationModal = initViewApplicationModal;
-    window.updateViewApplicationRecommendations = function() {
-      const textareas = document.querySelectorAll('#viewApplicationModal .comment-editor textarea');
-      textareas.forEach(textarea => autoResizeViewTextarea(textarea));
-    };
+    document.addEventListener('DOMContentLoaded', () => {
+      if (document.getElementById('viewApplicationModal')) {
+        const modal = document.getElementById('viewApplicationModal');
+        const observer = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class') {
+              if (modal.classList.contains('active')) {
+                setTimeout(() => { initViewAutoResize(); initViewTableObservers(); }, 100);
+              }
+            }
+          });
+        });
+        observer.observe(modal, { attributes: true });
+      }
+    });
+    window.viewApplicationModalInit = function(){ initViewAutoResize(); initViewTableObservers(); };
+    window.refreshViewApplicationModal = function(){ initViewAutoResize(); initViewTableObservers(); };
+    window.updateViewApplicationRecommendations = function(){ document.querySelectorAll('#viewApplicationModal .comment-editor textarea').forEach(t => { t.style.height='auto'; t.style.height = (t.scrollHeight) + 'px'; }); };
   })();
 </script>
