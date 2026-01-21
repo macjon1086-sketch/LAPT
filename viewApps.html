@@ -1,32 +1,31 @@
-<div id="viewApplicationModal" class="modal">
-  <div class="modal-content">
-    <div class="loan-application-modal">
-      <!-- Modal Header: Updated design -->
-      <div class="modal-header">
-        <div class="header-left">
-          <div id="applicationNumber" class="application-number">N/A</div>
-          <div class="applicant-info">
-            <div id="applicationApplicantName" class="applicant-name">N/A</div>
-          </div>
-          <div id="applicationStatusBadge" class="status-badge status-pending">
-            <i class="fas fa-clock"></i> Under Review
-          </div>
+<div class="modal-content">
+  <div class="loan-application-modal">
+    <!-- Modal Header: Updated design -->
+    <div class="modal-header">
+      <div class="header-left">
+        <div id="applicationNumber" class="application-number">N/A</div>
+        <div class="applicant-info">
+          <div id="applicationApplicantName" class="applicant-name">N/A</div>
         </div>
-        
-        <div class="header-actions">
-          <button type="button" class="action-btn" id="btn-print" onclick="printApplicationDetails()">
-            <i class="fas fa-print"></i> Print
-          </button>
-          <button type="button" class="action-btn primary" id="btn-export" onclick="exportApplicationDetails()">
-            <i class="fas fa-download"></i> Export
-          </button>
-          <button type="button" id="btn-edit" class="action-btn edit-btn" title="Edit Application" onclick="openEditSection('tab1')">
-            <i class="fas fa-pencil-alt"></i> Edit
-          </button>
-          <span class="close-button" onclick="closeViewApplicationModal()">&times;</span>
+        <div id="applicationStatusBadge" class="status-badge status-pending">
+          <i class="fas fa-clock"></i> Under Review
         </div>
       </div>
-
+      
+      <div class="header-actions">
+        <button type="button" class="action-btn" id="btn-print" onclick="printApplicationDetails()">
+          <i class="fas fa-print"></i> Print
+        </button>
+        <button type="button" class="action-btn primary" id="btn-export" onclick="exportApplicationDetails()">
+          <i class="fas fa-download"></i> Export
+        </button>
+        <button type="button" id="btn-edit" class="action-btn edit-btn" title="Edit Application" onclick="openEditSection('tab1')">
+          <i class="fas fa-pencil-alt"></i> Edit
+        </button>
+        <span class="close-button" onclick="closeViewApplicationModal()">&times;</span>
+      </div>
+    </div>
+    
       <div class="modal-body">
         <!-- General Information Section -->
         <div class="compact-view section-block" id="section-general">
@@ -322,17 +321,16 @@
           </div>
         </div>
 
-        <!-- Footer actions -->
-        <div class="compact-actions">
-          <button type="button" id="btn-approve" onclick="saveStageComment(false,'APPROVE')" style="display:none;">Approve</button>
-          <button type="button" id="btn-revert" onclick="saveStageComment(true,'REVERT')" style="display:none;">Revert</button>
-          <button type="button" id="btn-submit" onclick="saveStageComment(false,'SUBMIT')" style="display:none;">Submit</button>
-          <button type="button" class="back-button" onclick="closeViewApplicationModal()">Close</button>
-        </div>
+<div class="compact-actions">
+        <button type="button" id="btn-approve" onclick="saveStageComment(false,'APPROVE')" style="display:none;">Approve</button>
+        <button type="button" id="btn-revert" onclick="saveStageComment(true,'REVERT')" style="display:none;">Revert</button>
+        <button type="button" id="btn-submit" onclick="saveStageComment(false,'SUBMIT')" style="display:none;">Submit</button>
+        <button type="button" class="back-button" onclick="closeViewApplicationModal()">Close</button>
       </div>
     </div>
   </div>
 </div>
+
 <script>
   (function() {
     // Auto-resize textareas in view application modal
@@ -343,7 +341,6 @@
 
     function initViewAutoResize() {
       document.querySelectorAll('#viewApplicationModal textarea').forEach(t => {
-        // disable native resizer to keep more consistent layout
         t.style.resize = 'none';
         autoResizeViewTextarea(t);
         t.addEventListener('input', () => {
@@ -366,11 +363,9 @@
         const tbody = table.querySelector('tbody');
         if (!tbody) return;
         const observer = new MutationObserver(() => {
-          // force a reflow so the modal's size updates immediately
           const mc = document.querySelector('#viewApplicationModal .modal-content');
           if (mc) {
             mc.style.maxHeight = 'none';
-            // small noop to force layout update:
             mc.getBoundingClientRect();
           }
         });
@@ -378,8 +373,8 @@
       });
     }
 
-    // Initialize modal when it's opened
-    function initViewApplicationModal() {
+    // Initialization called when modal is opened
+    function initViewApplicationModal(appData) {
       initViewAutoResize();
       initViewTableObservers();
       
@@ -397,46 +392,12 @@
       });
     }
 
-    // Run initialization when DOM content loads
-    document.addEventListener('DOMContentLoaded', () => {
-      // Initialize when modal is present in DOM
-      if (document.getElementById('viewApplicationModal')) {
-        // Set up observer for when modal is shown
-        const modal = document.getElementById('viewApplicationModal');
-        const observer = new MutationObserver((mutations) => {
-          mutations.forEach((mutation) => {
-            if (mutation.attributeName === 'class') {
-              if (modal.classList.contains('active')) {
-                // Modal is now active, initialize
-                setTimeout(() => {
-                  initViewApplicationModal();
-                }, 100); // Small delay to ensure DOM is ready
-              }
-            }
-          });
-        });
-        
-        observer.observe(modal, { attributes: true });
-      }
-    });
-
-    // Global function to initialize view application modal
-    window.viewApplicationModalInit = function() {
-      initViewApplicationModal();
-    };
-
-    // Function to handle comment editor visibility changes
-    window.refreshViewApplicationModal = function() {
-      initViewApplicationModal();
-    };
-
-    // Function to handle dynamic loading of recommendations
+    // Expose init functions expected by Main.js / viewApps.js
+    window.initViewApplicationModal = initViewApplicationModal;
+    window.refreshViewApplicationModal = initViewApplicationModal;
     window.updateViewApplicationRecommendations = function() {
       const textareas = document.querySelectorAll('#viewApplicationModal .comment-editor textarea');
-      textareas.forEach(textarea => {
-        autoResizeViewTextarea(textarea);
-      });
+      textareas.forEach(textarea => autoResizeViewTextarea(textarea));
     };
-
   })();
 </script>
