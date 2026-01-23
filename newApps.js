@@ -1,8 +1,8 @@
-// newApps.js — behavior for the New Application modal
-// This file is adapted from the Apps Script project's newApplicationJS file.
-// It expects the modal HTML (newApps.html) to be present in the DOM.
+// newApps.js — cleaned and consolidated (full file)
+// Purpose: provide modal behavior for the "New Application" modal, avoid duplicate listeners
+// and avoid referencing non-existent functions (e.g. loadNewApplicationModal).
 
-console.log('newApps.js loaded');
+console.log('newApps.js (cleaned) loaded');
 
 // ---- State ----
 let additionalDocumentCount = 2;
@@ -29,113 +29,170 @@ function resetNewApplicationModal() {
       if (input.type === 'file') input.value = '';
       else if (input.type === 'checkbox' || input.type === 'radio') input.checked = false;
       else input.value = '';
-    } catch (e) {}
+    } catch (e) {
+      // ignore read-only elements
+    }
   });
 
+  // reset file-name displays (IDs used in the modal)
   ['bank-statement-name','pay-slip-name','undertaking-name','loan-statement-name'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) { el.textContent = 'No file chosen'; el.style.color = ''; }
+    if (el) {
+      el.textContent = 'No file chosen';
+      el.style.color = '';
+    }
   });
 
+  // clear dynamic tables
   const lhTable = document.getElementById('loanHistoryTable');
   if (lhTable && lhTable.querySelector('tbody')) lhTable.querySelector('tbody').innerHTML = '';
 
   const pbTable = document.getElementById('personalBudgetTable');
   if (pbTable && pbTable.querySelector('tbody')) pbTable.querySelector('tbody').innerHTML = '';
 
+  // reset counters / derived values
   additionalDocumentCount = 2;
   calculateTotals();
   calculateBudget();
 }
 
-function showNewApplicationModal(existingAppNumber = null) {
-  if (existingAppNumber) { loadExistingApplication(existingAppNumber); return; }
+// ---- Modal readiness helper ----
+function isModalReady() {
+  const modal = document.getElementById('newApplicationModal');
+  if (!modal) return false;
+  const modalContent = modal.querySelector('.modal-content');
+  return modalContent && modalContent.hasChildNodes();
+}
 
-  // In Apps Script environment the original used google.script.run.getNewApplicationContext().
-  // In a repo context you should implement server call here (fetch or similar).
-  if (window.google && google.script && google.script.run) {
-    google.script.run
-      .withSuccessHandler(function(ctx) {
-        window.currentAppNumber = ctx.appNumber;
-        window.currentAppFolderId = ctx.folderId;
+// ---- Show / Hide new application modal ----
+async function showNewApplicationModal(existingAppNumber = null) {
+  console.log('showNewApplicationModal called with:', existingAppNumber);
+
+  const modal = document.getElementById('newApplicationModal');
+  if (!modal) {
+    console.error('Modal element not found!');
+    alert('Error: Application form not loaded properly. Please refresh the page.');
+    return;
+  }
+
+  // Ensure modal content is loaded (loads newApps.html into #newApplicationModalContent)
+  const modalContent = document.getElementById('newApplicationModalContent');
+  if (!modalContent) {
+    console.error('#newApplicationModalContent not found');
+    alert('Internal error: modal content container missing');
+    return;
+  }
+
+  // Load content if not already loaded
+  if (!isModalReady()) {
+    try {
+      showLoading('Loading application form...');
+      const loaded = await loadModalContent(); // loadModalContent is in Main.js
+      hideLoading();
+      if (!loaded) {
+        alert('Failed to load application form.');
+        return;
+      }
+    } catch (err) {
+      hideLoading();
+      alert('Error loading form: ' + (err && err.message ? err.message : err));
+      return;
+    }
+  }
+
+  // Reset form to a clean state
+  resetNewApplicationModal();
+
+  // Show the modal
+  modal.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  modal.style.opacity = '1';
+  modal.style.visibility = 'visible';
+
+  // If editing an existing app, load it; otherwise get new context
+  if (existingAppNumber) {
+    loadExistingApplication(existingAppNumber);
+  } else {
+    try {
+      showLoading('Preparing new application...');
+      const response = await window.apiService.getNewApplicationContext({ showLoading: false });
+      hideLoading();
+      if (response && response.success && response.data) {
+        window.currentAppNumber = response.data.appNumber;
+        window.currentAppFolderId = response.data.folderId;
         const appNumberEl = document.getElementById('app-number');
         if (appNumberEl) appNumberEl.textContent = window.currentAppNumber || '';
-        const modal = document.getElementById('newApplicationModal');
-        if (modal) { modal.style.display = 'block'; resetNewApplicationModal(); const requestedTab = sessionStorage.getItem('editTab'); if (requestedTab) { openTab(requestedTab); sessionStorage.removeItem('editTab'); } else openTab('tab1'); }
-      })
-      .withFailureHandler(function(error) {
-        alert('Error starting new application: ' + (error?.message || error));
-      })
-      .getNewApplicationContext();
-  } else {
-    // Fallback behaviour for static/demo mode
-    window.currentAppNumber = 'LOCAL-' + Date.now();
-    const appNumberEl = document.getElementById('app-number');
-    if (appNumberEl) appNumberEl.textContent = window.currentAppNumber;
-    const modal = document.getElementById('newApplicationModal');
-    if (modal) { modal.style.display = 'block'; resetNewApplicationModal(); openTab('tab1'); }
+        openTab('tab1');
+      } else {
+        throw new Error(response?.message || 'Failed to get application context');
+      }
+    } catch (error) {
+      hideLoading();
+      console.error('Error in showNewApplicationModal:', error);
+      alert('Error starting new application: ' + (error?.message || error));
+    }
   }
 }
 
-// Load existing application for editing (calls server in Apps Script)
-function loadExistingApplication(appNumber) {
-  console.log('Loading existing application:', appNumber);
-  const overlay = document.createElement('div');
-  overlay.id = 'tempLoadingOverlay';
-  overlay.style.position = 'fixed';
-  overlay.style.top = 0; overlay.style.left = 0; overlay.style.right = 0; overlay.style.bottom = 0;
-  overlay.style.background = 'rgba(0,0,0,0.4)';
-  overlay.style.display = 'flex'; overlay.style.alignItems = 'center'; overlay.style.justifyContent = 'center';
-  overlay.style.zIndex = 9999;
-  overlay.innerHTML = '<div style="background:#fff;padding:16px;border-radius:6px;">Loading application data...</div>';
-  document.body.appendChild(overlay);
-
-  const userName = localStorage.getItem('loggedInName') || '';
-
-  if (window.google && google.script && google.script.run) {
-    google.script.run
-      .withSuccessHandler(function(response) {
-        const o = document.getElementById('tempLoadingOverlay'); if (o) o.remove();
-        if (response && response.success && response.data) {
-          const appData = response.data;
-          window.currentAppNumber = appNumber;
-          window.currentAppFolderId = appData.folderId || '';
-          const appNumberEl = document.getElementById('app-number'); if (appNumberEl) appNumberEl.textContent = appNumber;
-          populateFormWithData(appData);
-          const modal = document.getElementById('newApplicationModal'); if (modal) { modal.style.display = 'block'; const requestedTab = sessionStorage.getItem('editTab'); if (requestedTab) { openTab(requestedTab); sessionStorage.removeItem('editTab'); } else openTab('tab1'); }
-          calculateTotals(); calculateBudget();
-        } else {
-          alert('Failed to load application: ' + (response?.message || 'Application not found'));
-        }
-      })
-      .withFailureHandler(function(error) {
-        const o = document.getElementById('tempLoadingOverlay'); if (o) o.remove();
-        alert('Error loading application: ' + (error?.message || error));
-      })
-      .getApplicationDetails(appNumber, userName);
-  } else {
-    setTimeout(() => {
-      const o = document.getElementById('tempLoadingOverlay'); if (o) o.remove();
-      alert('Loading existing applications requires a server implementation (Apps Script). Running in demo/local mode.');
-    }, 600);
-  }
-}
-
-function closeModal() {
+// ---- Close modal ----
+function closeNewApplicationModal() {
+  console.log('closeNewApplicationModal called');
   const modal = document.getElementById('newApplicationModal');
   if (modal) {
     modal.style.display = 'none';
+    modal.style.opacity = '';
+    modal.style.visibility = '';
+    document.body.style.overflow = 'auto';
     resetNewApplicationModal();
     window.currentAppNumber = '';
     const appNumberEl = document.getElementById('app-number');
     if (appNumberEl) appNumberEl.textContent = '';
   }
 }
+window.closeNewApplicationModal = closeNewApplicationModal;
+window.showNewApplicationModal = showNewApplicationModal;
 
+// ---- init scripts ----
+function initNewApplicationScripts() {
+  console.log('Initializing new application scripts...');
+  calculateTotals();
+  calculateBudget();
+
+  // Attach file input preview handlers
+  ['bank-statement','pay-slip','undertaking','loan-statement'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) {
+      input.removeEventListener('change', function(){}); // harmless
+      input.addEventListener('change', function() { updateFilePreview(this); });
+    }
+  });
+
+  // Modal click outside to close
+  const modal = document.getElementById('newApplicationModal');
+  if (modal) {
+    modal.removeEventListener('click', handleModalClick);
+    modal.addEventListener('click', handleModalClick);
+  }
+}
+document.addEventListener('DOMContentLoaded', initNewApplicationScripts);
+
+// ---- modal click handler ----
+function handleModalClick(event) {
+  const modal = document.getElementById('newApplicationModal');
+  if (event.target === modal) {
+    closeNewApplicationModal();
+  }
+}
+
+// ---- Tabs ----
 function openTab(tabName) {
-  const tabs = document.querySelectorAll('#newApplicationModal .tab-content');
+  // Work only when modal content exists
+  const modal = document.getElementById('newApplicationModal');
+  if (!modal) return;
+
+  const tabs = modal.querySelectorAll('.tab-content');
   tabs.forEach(tab => tab.classList.remove('active'));
-  const btns = document.querySelectorAll('#newApplicationModal .tab-button');
+  const btns = modal.querySelectorAll('.tab-button');
   btns.forEach(btn => btn.classList.remove('active'));
 
   const targetTab = document.getElementById(tabName);
@@ -147,10 +204,12 @@ function openTab(tabName) {
   });
   if (btn) btn.classList.add('active');
 
-  if (tabName === 'tab5') populateReview();
+  if (tabName === 'tab5') {
+    setTimeout(populateReview, 50);
+  }
 }
 
-// Loan history dynamic table
+// ---- Loan History dynamic table ----
 function addLoanHistoryRow() {
   const tbody = document.getElementById('loanHistoryTable')?.querySelector('tbody');
   if (!tbody) return;
@@ -175,11 +234,7 @@ function deleteRow(btn) {
   if (isBudget) calculateBudget();
 }
 
-// Personal budget
-function addIncomeRow() { addBudgetRow('Income'); }
-function addExpenseRow() { addBudgetRow('Expense'); }
-function addRepaymentRow() { addBudgetRow('Repayment'); }
-
+// ---- Personal Budget ----
 function addBudgetRow(type) {
   const tbody = document.getElementById('personalBudgetTable')?.querySelector('tbody');
   if (!tbody) return;
@@ -191,8 +246,11 @@ function addBudgetRow(type) {
     <td><button type="button" class="delete-button" onclick="deleteRow(this)">Delete</button></td>
   `;
   tbody.appendChild(row);
-  calculateBudget();
+  calculateBudget(); // immediate recalc
 }
+function addIncomeRow() { addBudgetRow('Income'); }
+function addExpenseRow() { addBudgetRow('Expense'); }
+function addRepaymentRow() { addBudgetRow('Repayment'); }
 
 function computeTotalRepayments() {
   let totalRepayments = 0;
@@ -235,7 +293,7 @@ function calculateBudget() {
   if (dsrElem) dsrElem.value = dsrDisplay;
 }
 
-// Monthly turnover totals
+// ---- Monthly Turnover: Totals/Averages Calculation ----
 function calculateTotals() {
   let totalCrTO = 0, totalDrTO = 0, totalMaxBal = 0, totalMinBal = 0;
   for (let i = 1; i <= 3; i++) {
@@ -243,10 +301,17 @@ function calculateTotals() {
     const dr = parseFloat(document.getElementById(`drTO${i}`)?.value) || 0;
     const maxB = parseFloat(document.getElementById(`maxBal${i}`)?.value) || 0;
     const minB = parseFloat(document.getElementById(`minBal${i}`)?.value) || 0;
-    totalCrTO += cr; totalDrTO += dr; totalMaxBal += maxB; totalMinBal += minB;
+    totalCrTO += cr;
+    totalDrTO += dr;
+    totalMaxBal += maxB;
+    totalMinBal += minB;
   }
 
-  function setSpan(id, val) { const el = document.getElementById(id); if (el) el.textContent = Number(val || 0).toFixed(2); }
+  function setSpan(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = Number(val || 0).toFixed(2);
+  }
+
   setSpan('totalCrTO', totalCrTO);
   setSpan('totalDrTO', totalDrTO);
   setSpan('totalMaxBal', totalMaxBal);
@@ -268,7 +333,7 @@ function calculateTotals() {
   setSpan('dailyAvgMinBal', totalMinBal / 90);
 }
 
-// File preview
+// ---- File Upload Preview ----
 function updateFilePreview(input) {
   if (!input) return;
   const map = {
@@ -288,6 +353,7 @@ function updateFilePreview(input) {
     span.style.color = '';
   }
 }
+
 function addAdditionalDocument() {
   additionalDocumentCount++;
   const container = document.querySelector('#tab4 .upload-grid') || document.getElementById('tab4');
@@ -302,22 +368,22 @@ function addAdditionalDocument() {
   container.appendChild(upItem);
 }
 
-// Populate review
-function escapeHtml(s) {
-  if (s === null || s === undefined) return '';
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;");
-}
-
+// ---- Populate Review Fields ----
 function populateReview() {
-  const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
   setText('review-name', safeValue('name') || 'Not provided');
   setText('review-amount', safeValue('amount') || 'Not provided');
   setText('review-purpose', safeValue('purpose') || 'Not provided');
   setText('review-duration', safeValue('duration') || 'Not provided');
   setText('review-interestRate', safeValue('interestRate') || 'Not provided');
+
   setText('review-characterComment', document.getElementById('characterComment')?.value || 'No character comments provided');
 
-  // Loan history
+  // Loan History review
   const lhTBody = document.getElementById('review-loanHistoryTable')?.querySelector('tbody');
   if (lhTBody) {
     lhTBody.innerHTML = '';
@@ -337,12 +403,13 @@ function populateReview() {
     }
   }
 
-  // Budget
+  // Budget review (grouped)
   const budTBody = document.getElementById('review-personalBudgetTable')?.querySelector('tbody');
   if (budTBody) {
     budTBody.innerHTML = '';
     const rows = Array.from(document.querySelectorAll('#personalBudgetTable tbody tr'));
     const groups = { Income: [], Expense: [], Repayment: [] };
+
     rows.forEach(row => {
       const type = (row.cells[0]?.textContent || '').trim();
       const desc = row.cells[1]?.querySelector('input')?.value || '';
@@ -355,18 +422,21 @@ function populateReview() {
       const header = document.createElement('tr');
       header.innerHTML = `<td colspan="2" style="font-weight:bold; padding-top:8px;">${escapeHtml(title)}</td>`;
       budTBody.appendChild(header);
+
       if (!items.length) {
         const emptyRow = document.createElement('tr');
         emptyRow.innerHTML = `<td colspan="2" class="no-data">No ${escapeHtml(title.toLowerCase())} items</td>`;
         budTBody.appendChild(emptyRow);
         return;
       }
+
       items.forEach(it => {
         const r = document.createElement('tr');
         r.innerHTML = `<td>${escapeHtml(it.desc)}</td><td>${it.amt.toFixed(2)}</td>`;
         budTBody.appendChild(r);
       });
     }
+
     appendGroup('INCOME', groups.Income);
     appendGroup('EXPENDITURE', groups.Expense);
     appendGroup('REPAYMENT', groups.Repayment);
@@ -382,7 +452,7 @@ function populateReview() {
     budTBody.appendChild(dsrRow);
   }
 
-  // Monthly turnover
+  // Monthly Turnover review
   const mtTBody = document.getElementById('review-monthlyTurnoverTable')?.querySelector('tbody');
   if (mtTBody) {
     mtTBody.innerHTML = '';
@@ -394,24 +464,29 @@ function populateReview() {
       const minB = safeValue(`minBal${i}`) || '0.00';
       mtTBody.innerHTML += `<tr><td>${escapeHtml(month)}</td><td>${escapeHtml(cr)}</td><td>${escapeHtml(dr)}</td><td>${escapeHtml(maxB)}</td><td>${escapeHtml(minB)}</td></tr>`;
     }
-    if (document.getElementById('totalCrTO')) {
-      mtTBody.innerHTML += `<tr><td><strong>Total</strong></td><td>${parseFloat(safeText('totalCrTO', '0')).toFixed(2)}</td><td>${parseFloat(safeText('totalDrTO', '0')).toFixed(2)}</td><td>${parseFloat(safeText('totalMaxBal', '0')).toFixed(2)}</td><td>${parseFloat(safeText('totalMinBal', '0')).toFixed(2)}</td></tr>`;
-      mtTBody.innerHTML += `<tr><td><strong>Monthly Average</strong></td><td>${parseFloat(safeText('monthlyAvgCrTO', '0')).toFixed(2)}</td><td>${parseFloat(safeText('monthlyAvgDrTO', '0')).toFixed(2)}</td><td>${parseFloat(safeText('monthlyAvgMaxBal', '0')).toFixed(2)}</td><td>${parseFloat(safeText('monthlyAvgMinBal', '0')).toFixed(2)}</td></tr>`;
-      mtTBody.innerHTML += `<tr><td><strong>Weekly Average</strong></td><td>${parseFloat(safeText('weeklyAvgCrTO', '0')).toFixed(2)}</td><td>${parseFloat(safeText('weeklyAvgDrTO', '0')).toFixed(2)}</td><td>${parseFloat(safeText('weeklyAvgMaxBal', '0')).toFixed(2)}</td><td>${parseFloat(safeText('weeklyAvgMinBal', '0')).toFixed(2)}</td></tr>`;
-      mtTBody.innerHTML += `<tr><td><strong>Daily Average</strong></td><td>${parseFloat(safeText('dailyAvgCrTO', '0')).toFixed(2)}</td><td>${parseFloat(safeText('dailyAvgDrTO', '0')).toFixed(2)}</td><td>${parseFloat(safeText('dailyAvgMaxBal', '0')).toFixed(2)}</td><td>${parseFloat(safeText('dailyAvgMinBal', '0')).toFixed(2)}</td></tr>`;
-    }
+    const appendSummaryRow = (label, ids) => {
+      const v0 = parseFloat(safeText(ids[0], '0')) || 0;
+      const v1 = parseFloat(safeText(ids[1], '0')) || 0;
+      const v2 = parseFloat(safeText(ids[2], '0')) || 0;
+      const v3 = parseFloat(safeText(ids[3], '0')) || 0;
+      mtTBody.innerHTML += `<tr><td>${label}</td><td>${v0.toFixed(2)}</td><td>${v1.toFixed(2)}</td><td>${v2.toFixed(2)}</td><td>${v3.toFixed(2)}</td></tr>`;
+    };
+    if (document.getElementById('totalCrTO')) appendSummaryRow('<strong>Total</strong>', ['totalCrTO','totalDrTO','totalMaxBal','totalMinBal']);
+    if (document.getElementById('monthlyAvgCrTO')) appendSummaryRow('<strong>Monthly Average</strong>', ['monthlyAvgCrTO','monthlyAvgDrTO','monthlyAvgMaxBal','monthlyAvgMinBal']);
+    if (document.getElementById('weeklyAvgCrTO')) appendSummaryRow('<strong>Weekly Average</strong>', ['weeklyAvgCrTO','weeklyAvgDrTO','weeklyAvgMaxBal','weeklyAvgMinBal']);
+    if (document.getElementById('dailyAvgCrTO')) appendSummaryRow('<strong>Daily Average</strong>', ['dailyAvgCrTO','dailyAvgDrTO','dailyAvgMaxBal','dailyAvgMinBal']);
   }
 
   // Risk comments
-  setText('review-marginComment', document.getElementById('marginComment')?.value || 'No margin requirements specified');
-  setText('review-repaymentComment', document.getElementById('repaymentComment')?.value || 'Standard repayment terms apply');
-  setText('review-securityComment', document.getElementById('securityComment')?.value || 'Primary collateral required');
-  setText('review-financialsComment', document.getElementById('financialsComment')?.value || 'Financial statements reviewed and acceptable');
-  setText('review-risksComment', document.getElementById('risksComment')?.value || 'Moderate market risk identified');
-  setText('review-riskMitigationComment', document.getElementById('riskMitigationComment')?.value || 'Regular monitoring implemented');
-  setText('review-creditOfficerComment', document.getElementById('creditOfficerComment')?.value || 'No recommendation provided');
+  setTextIfExists('review-marginComment', document.getElementById('marginComment')?.value || 'No margin requirements specified');
+  setTextIfExists('review-repaymentComment', document.getElementById('repaymentComment')?.value || 'Standard repayment terms apply');
+  setTextIfExists('review-securityComment', document.getElementById('securityComment')?.value || 'Primary collateral required');
+  setTextIfExists('review-financialsComment', document.getElementById('financialsComment')?.value || 'Financial statements reviewed and acceptable');
+  setTextIfExists('review-risksComment', document.getElementById('risksComment')?.value || 'Moderate market risk identified');
+  setTextIfExists('review-riskMitigationComment', document.getElementById('riskMitigationComment')?.value || 'Regular monitoring implemented');
+  setTextIfExists('review-creditOfficerComment', document.getElementById('creditOfficerComment')?.value || 'No recommendation provided');
 
-  // Uploaded Documents list
+  // Uploaded documents list
   const uploadsList = document.getElementById('review-uploads-list');
   if (uploadsList) {
     uploadsList.innerHTML = '';
@@ -435,7 +510,7 @@ function populateReview() {
   }
 }
 
-// Build form data (structure)
+// ---- Build structured data from modal ----
 function buildModalFormData() {
   const formData = {
     name: safeValue('name'),
@@ -497,7 +572,7 @@ function buildModalFormData() {
     }
   };
 
-  // loan history
+  // loan history rows
   const lhRows = document.querySelectorAll('#loanHistoryTable tbody tr');
   lhRows.forEach(row => {
     const inputs = row.querySelectorAll('input');
@@ -510,7 +585,7 @@ function buildModalFormData() {
     });
   });
 
-  // personal budget
+  // personal budget rows
   const pbRows = document.querySelectorAll('#personalBudgetTable tbody tr');
   pbRows.forEach(row => {
     const type = row.cells[0]?.textContent || '';
@@ -522,116 +597,60 @@ function buildModalFormData() {
   return formData;
 }
 
-// Save draft from modal
+// ---- Save draft ----
 function saveDraftFromModal() {
   const loggedInUser = localStorage.getItem('loggedInName') || '';
-  if (!loggedInUser) { alert('Please login first!'); return; }
-  const appNumber = window.currentAppNumber || document.getElementById('app-number')?.textContent || '';
-  if (!appNumber) { alert('Application number not found.'); return; }
-  const name = document.getElementById('name')?.value;
-  if (!name) { alert('Please at least enter the applicant name for the draft.'); return; }
-
-  const formData = buildModalFormData();
-  console.log("Saving draft - formData:", formData);
-
-  // Show loading UI
-  const overlay = document.createElement('div');
-  overlay.id = 'tempSavingOverlay';
-  overlay.style.position = 'fixed';
-  overlay.style.top = 0; overlay.style.left = 0; overlay.style.right = 0; overlay.style.bottom = 0;
-  overlay.style.background = 'rgba(0,0,0,0.4)';
-  overlay.style.display = 'flex'; overlay.style.alignItems = 'center'; overlay.style.justifyContent = 'center';
-  overlay.style.zIndex = 9999;
-  overlay.innerHTML = '<div style="background:#fff;padding:16px;border-radius:6px;">Saving draft...</div>';
-  document.body.appendChild(overlay);
-
-  if (window.google && google.script && google.script.run) {
-    google.script.run
-      .withSuccessHandler(function(res) {
-        const o = document.getElementById('tempSavingOverlay'); if (o) o.remove();
-        if (res && res.success) {
-          alert(res.message || 'Draft saved!');
-          if (typeof closeModal === 'function') closeModal();
-          if (typeof refreshApplications === 'function') refreshApplications();
-          if (typeof updateBadgeCounts === 'function') updateBadgeCounts();
-        } else {
-          alert('Failed to save draft: ' + (res?.message || 'unknown error'));
-        }
-      })
-      .withFailureHandler(function(err) {
-        const o = document.getElementById('tempSavingOverlay'); if (o) o.remove();
-        alert('Error saving draft: ' + (err?.message || err));
-      })
-      .saveProcessApplicationForm(appNumber, formData, loggedInUser, true);
-  } else {
-    setTimeout(() => {
-      const o = document.getElementById('tempSavingOverlay'); if (o) o.remove();
-      alert('Draft saving requires server-side implementation. Demo/local mode: draft not persisted.');
-    }, 600);
+  if (!loggedInUser) {
+    alert('Please login first!');
+    return;
   }
-}
 
-function saveNewApplication() {
-  const loggedInUser = localStorage.getItem('loggedInName');
-  if (!loggedInUser) { alert('Please login first!'); return; }
   const appNumber = window.currentAppNumber || document.getElementById('app-number')?.textContent || '';
-  if (!appNumber) { alert('Application number not found. Please start a new application from the main dashboard.'); return; }
+  if (!appNumber) {
+    alert('Application number not found.');
+    return;
+  }
 
   const name = document.getElementById('name')?.value;
-  const amount = document.getElementById('amount')?.value;
-  const purpose = document.getElementById('purpose')?.value;
-  const duration = document.getElementById('duration')?.value;
-  const interestRate = document.getElementById('interestRate')?.value;
-
-  if (!name || !amount || !purpose || !duration || !interestRate) {
-    alert('Please fill in all required fields: Name, Amount, Purpose, Duration, and Interest Rate');
+  if (!name) {
+    alert('Please at least enter the applicant name for the draft.');
     return;
   }
 
   const formData = buildModalFormData();
-  formData.appNumber = appNumber;
 
-  const overlay = document.createElement('div');
-  overlay.id = 'tempSavingOverlay';
-  overlay.style.position = 'fixed';
-  overlay.style.top = 0; overlay.style.left = 0; overlay.style.right = 0; overlay.style.bottom = 0;
-  overlay.style.background = 'rgba(0,0,0,0.4)';
-  overlay.style.display = 'flex'; overlay.style.alignItems = 'center'; overlay.style.justifyContent = 'center';
-  overlay.style.zIndex = 9999;
-  overlay.innerHTML = '<div style="background:#fff;padding:16px;border-radius:6px;">Submitting application...</div>';
-  document.body.appendChild(overlay);
-
-  if (window.google && google.script && google.script.run) {
-    google.script.run
-      .withSuccessHandler(function(response) {
-        const o = document.getElementById('tempSavingOverlay'); if (o) o.remove();
-        if (response && response.success) {
-          alert(response.message || 'Application submitted successfully!');
-          if (typeof closeModal === 'function') closeModal();
-          if (typeof refreshApplications === 'function') refreshApplications();
-          if (typeof updateBadgeCounts === 'function') updateBadgeCounts();
-        } else {
-          alert('Error saving application: ' + (response?.message || 'unknown error'));
-        }
-      })
-      .withFailureHandler(function(error) {
-        const o = document.getElementById('tempSavingOverlay'); if (o) o.remove();
-        alert('Error saving application: ' + (error?.message || error));
-      })
-      .saveProcessApplicationForm(appNumber, formData, loggedInUser, false);
-  } else {
-    setTimeout(() => {
-      const o = document.getElementById('tempSavingOverlay'); if (o) o.remove();
-      alert('Submission requires server-side implementation. Demo/local mode: submission not performed.');
-    }, 600);
-  }
+  if (typeof showLoading === 'function') showLoading('Saving draft...');
+  window.apiService.saveApplication(appNumber, formData, loggedInUser, true, { showLoading: false })
+    .then(function(res) {
+      if (typeof hideLoading === 'function') hideLoading();
+      if (res && res.success) {
+        alert(res.message || 'Draft saved!');
+        closeNewApplicationModal();
+        if (typeof refreshApplications === 'function') refreshApplications();
+        if (typeof updateBadgeCounts === 'function') updateBadgeCounts();
+      } else {
+        alert('Failed to save draft: ' + (res?.message || 'unknown error'));
+      }
+    })
+    .catch(function(err) {
+      if (typeof hideLoading === 'function') hideLoading();
+      alert('Error saving draft: ' + (err?.message || err));
+    });
 }
 
+// ---- Submit application (final) ----
 function submitNewApplication() {
   const loggedInUser = localStorage.getItem('loggedInName');
-  if (!loggedInUser) { alert('Please login first!'); return; }
+  if (!loggedInUser) {
+    alert('Please login first!');
+    return;
+  }
+
   const appNumber = window.currentAppNumber || document.getElementById('app-number')?.textContent || '';
-  if (!appNumber) { alert('Application number not found. Please start a new application from the main dashboard.'); return; }
+  if (!appNumber) {
+    alert('Application number not found. Please start a new application from the main dashboard.');
+    return;
+  }
 
   const name = document.getElementById('name')?.value;
   const amount = document.getElementById('amount')?.value;
@@ -650,6 +669,7 @@ function submitNewApplication() {
   if (!characterComment || characterComment.trim() === '') {
     if (!confirm('Character comment is empty. Submit anyway?')) return;
   }
+
   if (!creditOfficerComment || creditOfficerComment.trim() === '') {
     if (!confirm('Credit Officer recommendation is empty. Submit anyway?')) return;
   }
@@ -657,70 +677,61 @@ function submitNewApplication() {
   const formData = buildModalFormData();
   formData.appNumber = appNumber;
 
-  const overlay = document.createElement('div');
-  overlay.id = 'tempSavingOverlay';
-  overlay.style.position = 'fixed';
-  overlay.style.top = 0; overlay.style.left = 0; overlay.style.right = 0; overlay.style.bottom = 0;
-  overlay.style.background = 'rgba(0,0,0,0.4)';
-  overlay.style.display = 'flex'; overlay.style.alignItems = 'center'; overlay.style.justifyContent = 'center';
-  overlay.style.zIndex = 9999;
-  overlay.innerHTML = '<div style="background:#fff;padding:16px;border-radius:6px;">Submitting application...</div>';
-  document.body.appendChild(overlay);
+  if (typeof showLoading === 'function') showLoading('Submitting application...');
 
-  if (window.google && google.script && google.script.run) {
-    google.script.run
-      .withSuccessHandler(function(response) {
-        const o = document.getElementById('tempSavingOverlay'); if (o) o.remove();
-        if (response && response.success) {
-          if (typeof showSuccessModal === 'function') showSuccessModal(response.message || 'Application submitted successfully!');
-          else alert(response.message || 'Application submitted successfully!');
-          if (typeof closeModal === 'function') closeModal();
-          if (typeof refreshApplications === 'function') refreshApplications();
-          if (typeof updateBadgeCounts === 'function') updateBadgeCounts();
+  window.apiService.saveApplication(appNumber, formData, loggedInUser, false, { showLoading: false })
+    .then(function(response) {
+      if (typeof hideLoading === 'function') hideLoading();
+      if (response && response.success) {
+        if (typeof showSuccessModal === 'function') {
+          showSuccessModal(response.message || 'Application submitted successfully!');
         } else {
-          alert('Error submitting application: ' + (response?.message || 'unknown error'));
+          alert(response.message || 'Application submitted successfully!');
         }
-      })
-      .withFailureHandler(function(error) {
-        const o = document.getElementById('tempSavingOverlay'); if (o) o.remove();
-        alert('Error submitting application: ' + (error?.message || error));
-      })
-      .saveProcessApplicationForm(appNumber, formData, loggedInUser, false);
-  } else {
-    setTimeout(() => {
-      const o = document.getElementById('tempSavingOverlay'); if (o) o.remove();
-      alert('Submission requires server-side implementation. Demo/local mode: submission not performed.');
-    }, 600);
-  }
-}
-
-// Initialization
-function initNewApplicationScripts() {
-  calculateTotals();
-  calculateBudget();
-
-  // attach file input preview handlers for known inputs
-  ['bank-statement','pay-slip','undertaking','loan-statement'].forEach(id => {
-    const input = document.getElementById(id);
-    if (input) {
-      input.addEventListener('change', function() { updateFilePreview(this); });
-    }
-  });
-
-  const modal = document.getElementById('newApplicationModal');
-  if (modal) {
-    window.addEventListener('click', function(event) {
-      if (event.target === modal) closeModal();
+        closeNewApplicationModal();
+        if (typeof refreshApplications === 'function') refreshApplications();
+        if (typeof updateBadgeCounts === 'function') updateBadgeCounts();
+      } else {
+        alert('Error submitting application: ' + (response?.message || 'unknown error'));
+      }
+    })
+    .catch(function(error) {
+      if (typeof hideLoading === 'function') hideLoading();
+      alert('Error submitting application: ' + (error?.message || error));
     });
-  }
-}
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initNewApplicationScripts);
-} else {
-  initNewApplicationScripts();
 }
 
-// Populate form with existing data helpers
+// ---- Populate form with existing data ----
+function loadExistingApplication(appNumber) {
+  console.log('Loading existing application:', appNumber);
+  if (typeof showLoading === 'function') showLoading('Loading application data...');
+  const userName = localStorage.getItem('loggedInName') || '';
+
+  window.apiService.getApplicationDetails(appNumber, userName, { showLoading: false })
+    .then(function(response) {
+      if (typeof hideLoading === 'function') hideLoading();
+      if (response && response.success && response.data) {
+        const appData = response.data;
+        window.currentAppNumber = appNumber;
+        window.currentAppFolderId = appData.folderId || '';
+        const appNumberEl = document.getElementById('app-number');
+        if (appNumberEl) appNumberEl.textContent = appNumber;
+        populateFormWithData(appData);
+        const modal = document.getElementById('newApplicationModal');
+        if (modal) modal.style.display = 'block';
+        openTab('tab1');
+        calculateTotals();
+        calculateBudget();
+      } else {
+        alert('Failed to load application: ' + (response?.message || 'Application not found'));
+      }
+    })
+    .catch(function(error) {
+      if (typeof hideLoading === 'function') hideLoading();
+      alert('Error loading application: ' + (error?.message || error));
+    });
+}
+
 function populateFormWithData(appData) {
   console.log('Populating form with data:', appData);
   setInputValue('name', appData.name || '');
@@ -762,13 +773,14 @@ function formatDateForInput(dateString) {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return '';
     return date.toISOString().split('T')[0];
-  } catch (e) { return ''; }
+  } catch (e) {
+    return '';
+  }
 }
 function populateLoanHistory(loanHistory) {
   const tbody = document.getElementById('loanHistoryTable')?.querySelector('tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  if (!loanHistory.length) return;
   loanHistory.forEach(item => {
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -786,7 +798,6 @@ function populatePersonalBudget(personalBudget) {
   const tbody = document.getElementById('personalBudgetTable')?.querySelector('tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  if (!personalBudget.length) return;
   personalBudget.forEach(item => {
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -816,12 +827,79 @@ function populateMonthlyTurnover(turnover) {
   if (turnover.minBal2 !== undefined) setInputValue('minBal2', turnover.minBal2 || 0);
   if (turnover.minBal3 !== undefined) setInputValue('minBal3', turnover.minBal3 || 0);
 }
+
 function updateFilePreviews(documents) {
-  if (!documents || documents.length === 0) return;
-  documents.forEach(doc => {
-    if (doc.type === 'bankStatement') { safeSetText('bank-statement-name', doc.name || 'File uploaded'); const el = document.getElementById('bank-statement-name'); if (el) el.style.color = '#16a34a'; }
-    else if (doc.type === 'paySlip') { safeSetText('pay-slip-name', doc.name || 'File uploaded'); const el = document.getElementById('pay-slip-name'); if (el) el.style.color = '#16a34a'; }
-    else if (doc.type === 'undertaking') { safeSetText('undertaking-name', doc.name || 'File uploaded'); const el = document.getElementById('undertaking-name'); if (el) el.style.color = '#16a34a'; }
-    else if (doc.type === 'loanStatement') { safeSetText('loan-statement-name', doc.name || 'File uploaded'); const el = document.getElementById('loan-statement-name'); if (el) el.style.color = '#16a34a'; }
-  });
+  if (!documents) return;
+  // documents may be array or object; support both shapes
+  if (Array.isArray(documents)) {
+    documents.forEach(doc => {
+      if (doc.type === 'bankStatement') {
+        safeSetText('bank-statement-name', doc.name || 'File uploaded');
+        const el = document.getElementById('bank-statement-name');
+        if (el) el.style.color = '#16a34a';
+      } else if (doc.type === 'paySlip') {
+        safeSetText('pay-slip-name', doc.name || 'File uploaded');
+        const el = document.getElementById('pay-slip-name');
+        if (el) el.style.color = '#16a34a';
+      } else if (doc.type === 'undertaking') {
+        safeSetText('undertaking-name', doc.name || 'File uploaded');
+        const el = document.getElementById('undertaking-name');
+        if (el) el.style.color = '#16a34a';
+      } else if (doc.type === 'loanStatement') {
+        safeSetText('loan-statement-name', doc.name || 'File uploaded');
+        const el = document.getElementById('loan-statement-name');
+        if (el) el.style.color = '#16a34a';
+      }
+    });
+  } else {
+    // object map
+    if (documents.bankStatement) {
+      safeSetText('bank-statement-name', documents.bankStatementName || 'File uploaded');
+      const el = document.getElementById('bank-statement-name');
+      if (el) el.style.color = '#16a34a';
+    }
+    if (documents.paySlip) {
+      safeSetText('pay-slip-name', documents.paySlipName || 'File uploaded');
+      const el = document.getElementById('pay-slip-name');
+      if (el) el.style.color = '#16a34a';
+    }
+    if (documents.undertaking) {
+      safeSetText('undertaking-name', documents.undertakingName || 'File uploaded');
+      const el = document.getElementById('undertaking-name');
+      if (el) el.style.color = '#16a34a';
+    }
+    if (documents.loanStatement) {
+      safeSetText('loan-statement-name', documents.loanStatementName || 'File uploaded');
+      const el = document.getElementById('loan-statement-name');
+      if (el) el.style.color = '#16a34a';
+    }
+  }
 }
+
+// ---- Small helpers ----
+function setTextIfExists(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatDateForInput(dateString) {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  } catch (e) {
+    return '';
+  }
+}
+
+/* End of newApps.js */
